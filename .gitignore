@@ -1,0 +1,43 @@
+# ---- Dependencies ----
+node_modules/
+**/node_modules/
+.pnp
+.pnp.*
+
+# ---- Environment files (NEVER commit) ----
+.env
+.env.*
+!.env.example
+
+# ---- Logs ----
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+logs/
+*.log
+
+# ---- Build / Cache ----
+dist/
+build/
+out/
+.cache/
+coverage/
+
+# ---- Supabase (local CLI artifacts only — keep migrations & schema) ----
+.branches/
+.temp/
+supabase/.branches/
+supabase/.temp/
+
+# ---- Runtime / process ----
+*.pid
+*.seed
+*.pid.lock
+
+# ---- OS / Editor ----
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
