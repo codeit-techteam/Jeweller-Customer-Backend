@@ -203,9 +203,8 @@ export function buildOpenApiSpec(app) {
   }
   tags.sort((a, b) => a.name.localeCompare(b.name));
 
-  const port = Number(process.env.PORT) || 5000;
   const serverUrl =
-    process.env.OPENAPI_SERVER_URL || `http://localhost:${port}`;
+    process.env.OPENAPI_SERVER_URL || "http://168.144.83.229:5106";
 
   return {
     openapi: "3.0.3",
@@ -222,7 +221,7 @@ export function buildOpenApiSpec(app) {
         name: "API Support",
       },
     },
-    servers: [{ url: serverUrl, description: "Current environment" }],
+    servers: [{ url: serverUrl, description: "Production API" }],
     tags,
     paths,
     components: buildComponents(),
