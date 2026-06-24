@@ -2,24 +2,32 @@ import {
   countRows,
   fetchRows,
   fillDateSeries,
-  getDailyRollups,
+  getDateRange,
   groupByDay,
-  parseDateRange,
 } from "./_helpers.js";
 
 export async function getPlatformAnalytics(query = {}) {
-  const range = parseDateRange(query);
+  const range = getDateRange(query);
+  const rangeFilters = [
+    ["created_at", "gte", range.from],
+    ["created_at", "lte", range.to],
+  ];
 
   const [
     totalUsers,
+    newCustomers,
+    newBoutiques,
     totalBoutiques,
     approvedBoutiques,
     rejectedBoutiques,
     totalProducts,
-    newUsers,
+    totalCollections,
     totalAppointments,
+    totalOrders,
   ] = await Promise.all([
     countRows("users_profile"),
+    countRows("users_profile", rangeFilters),
+    countRows("boutiques", [...rangeFilters, ["deleted_at", "is", null]]),
     countRows("boutiques", [["deleted_at", "is", null]]),
     countRows("boutiques", [
       ["store_status", "eq", "approved"],
@@ -30,70 +38,65 @@ export async function getPlatformAnalytics(query = {}) {
       ["deleted_at", "is", null],
     ]),
     countRows("products"),
-    countRows("users_profile", [
-      ["created_at", "gte", range.from],
-      ["created_at", "lte", range.to],
-    ]),
-    countRows("appointments"),
+    countRows("collections"),
+    countRows("appointments", rangeFilters),
+    countRows("platform_orders", [...rangeFilters, ["status", "eq", "completed"]]),
   ]);
 
-  const rollups = await getDailyRollups(range.from, range.to);
-  let userGrowth = [];
-  let boutiqueApprovalTrends = [];
-  let productUploadTrends = [];
-  let appointmentTrends = [];
+  const newUsers = newCustomers + newBoutiques;
 
-  if (rollups?.length) {
-    userGrowth = rollups.map((r) => ({ date: r.day, value: Number(r.new_users ?? 0) }));
-    // Rollups don't track approval transitions; fallback below is used for this metric.
-    productUploadTrends = rollups.map((r) => ({ date: r.day, value: Number(r.new_products ?? 0) }));
-    appointmentTrends = rollups.map((r) => ({ date: r.day, value: Number(r.appointments ?? 0) }));
-  }
+  const [
+    users,
+    newBoutiqueRows,
+    approvedBoutiquesRows,
+    products,
+    appointments,
+    activityLogs,
+    latestBoutiques,
+  ] = await Promise.all([
+    fetchRows("users_profile", "created_at", rangeFilters),
+    fetchRows("boutiques", "created_at", [
+      ...rangeFilters,
+      ["deleted_at", "is", null],
+    ]),
+    fetchRows("boutiques", "created_at", [
+      ["store_status", "eq", "approved"],
+      ...rangeFilters,
+      ["deleted_at", "is", null],
+    ]),
+    fetchRows("products", "created_at", rangeFilters),
+    fetchRows("appointments", "created_at", rangeFilters),
+    fetchRows("admin_activity_logs", "id, action, boutique_id, metadata, created_at", rangeFilters, {
+      orderBy: "created_at",
+      ascending: false,
+      limit: 20,
+    }),
+    fetchRows(
+      "boutiques",
+      "id, name, location, created_at, store_status",
+      [...rangeFilters, ["deleted_at", "is", null]],
+      { orderBy: "created_at", ascending: false, limit: 8 },
+    ),
+  ]);
 
-  const [users, approvedBoutiquesRows, products, appointments, activityLogs, latestBoutiques] =
-    await Promise.all([
-      fetchRows("users_profile", "created_at", [
-        ["created_at", "gte", range.from],
-        ["created_at", "lte", range.to],
-      ]),
-      fetchRows("boutiques", "created_at", [
-        ["store_status", "eq", "approved"],
-        ["created_at", "gte", range.from],
-        ["created_at", "lte", range.to],
-        ["deleted_at", "is", null],
-      ]),
-      fetchRows("products", "created_at", [
-        ["created_at", "gte", range.from],
-        ["created_at", "lte", range.to],
-      ]),
-      fetchRows("appointments", "created_at, starts_at", [
-        ["created_at", "gte", range.from],
-        ["created_at", "lte", range.to],
-      ]),
-      fetchRows("admin_activity_logs", "id, action, boutique_id, metadata, created_at", [], {
-        orderBy: "created_at",
-        ascending: false,
-        limit: 20,
-      }),
-      fetchRows(
-        "boutiques",
-        "id, name, location, created_at, store_status",
-        [["deleted_at", "is", null]],
-        { orderBy: "created_at", ascending: false, limit: 8 },
-      ),
-    ]);
+  const signupRows = [
+    ...users.map((row) => ({ created_at: row.created_at })),
+    ...newBoutiqueRows.map((row) => ({ created_at: row.created_at })),
+  ];
 
-  if (!rollups?.length) {
-    userGrowth = fillDateSeries(groupByDay(users), range.from, range.to);
-    productUploadTrends = fillDateSeries(groupByDay(products), range.from, range.to);
-    appointmentTrends = fillDateSeries(
-      groupByDay(appointments, "starts_at"),
-      range.from,
-      range.to,
-    );
-  }
+  const userGrowth = fillDateSeries(groupByDay(signupRows), range.from, range.to);
+  const boutiqueApprovalTrends = fillDateSeries(
+    groupByDay(approvedBoutiquesRows),
+    range.from,
+    range.to,
+  );
+  const productUploadTrends = fillDateSeries(groupByDay(products), range.from, range.to);
+  const appointmentTrends = fillDateSeries(
+    groupByDay(appointments, "created_at"),
+    range.from,
+    range.to,
+  );
 
-  boutiqueApprovalTrends = fillDateSeries(groupByDay(approvedBoutiquesRows), range.from, range.to);
   const boutiquePerformance = await getTopBoutiques(range);
   const pendingBoutiques = Math.max(totalBoutiques - approvedBoutiques - rejectedBoutiques, 0);
 
@@ -101,12 +104,14 @@ export async function getPlatformAnalytics(query = {}) {
     range,
     cards: {
       totalUsers,
+      newUsers,
       totalBoutiques,
       approvedBoutiques,
       pendingBoutiques,
       totalProducts,
-      newUsers,
+      totalCollections,
       totalAppointments,
+      totalOrders,
     },
     charts: {
       userGrowth,
