@@ -116,6 +116,7 @@ export async function getRelationshipSectionListingProducts(sectionId) {
       id,
       name,
       price,
+      price_breakup,
       image,
       primary_image,
       thumbnail,

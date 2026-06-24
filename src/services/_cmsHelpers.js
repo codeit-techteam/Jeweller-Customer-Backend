@@ -109,6 +109,27 @@ export async function syncProductLinks({ table, parentColumn, parentId, productI
 }
 
 /**
+ * Resolve the canonical display price from price_breakup, falling back to
+ * products.price. Ensures cards always show the correct total even when
+ * products.price is stale.
+ *
+ * Priority: price_breakup.total → sum(gold+gemstone+makingCharge+gst) → price
+ */
+function resolveLinkedProductPrice(rawPrice, priceBreakup) {
+  const base = Number(rawPrice ?? 0) || 0;
+  const pb = priceBreakup;
+  if (!pb || typeof pb !== 'object') return base;
+  const total = Number(pb.total);
+  if (Number.isFinite(total) && total > 0) return total;
+  const sum =
+    (Number(pb.gold) || 0) +
+    (Number(pb.gemstone) || 0) +
+    (Number(pb.makingCharge ?? pb.making) || 0) +
+    (Number(pb.gst) || 0);
+  return sum > 0 ? sum : base;
+}
+
+/**
  * Fetch the products linked to a parent in deterministic display order.
  * Returns lightweight product info suitable for app cards.
  */
@@ -117,7 +138,7 @@ export async function fetchLinkedProducts({ table, parentColumn, parentId }) {
   const { data, error } = await supabase
     .from(table)
     .select(
-      'product_id, sort_order, product:products(id, name, price, primary_image, thumbnail, featured_image, image, status, is_trending, discount_percentage)',
+      'product_id, sort_order, product:products(id, name, price, price_breakup, primary_image, thumbnail, featured_image, image, status, is_trending, discount_percentage)',
     )
     .eq(parentColumn, parentId)
     .order('sort_order', { ascending: true });
@@ -131,7 +152,7 @@ export async function fetchLinkedProducts({ table, parentColumn, parentId }) {
       return {
         id: product.id,
         name: product.name,
-        price: product.price,
+        price: resolveLinkedProductPrice(product.price, product.price_breakup),
         image:
           product.primary_image ??
           product.thumbnail ??

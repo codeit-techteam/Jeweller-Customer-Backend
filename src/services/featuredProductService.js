@@ -7,6 +7,20 @@ import {
 
 const TABLE = 'featured_products';
 
+function resolvePrice(rawPrice, priceBreakup) {
+  const base = Number(rawPrice ?? 0) || 0;
+  const pb = priceBreakup;
+  if (!pb || typeof pb !== 'object') return base;
+  const total = Number(pb.total);
+  if (Number.isFinite(total) && total > 0) return total;
+  const sum =
+    (Number(pb.gold) || 0) +
+    (Number(pb.gemstone) || 0) +
+    (Number(pb.makingCharge ?? pb.making) || 0) +
+    (Number(pb.gst) || 0);
+  return sum > 0 ? sum : base;
+}
+
 function mapProductRow(p) {
   if (!p) return null;
   const gallery = Array.isArray(p.images)
@@ -25,7 +39,7 @@ function mapProductRow(p) {
   return {
     id: p.id,
     name: p.name,
-    price: Number(p.price ?? 0),
+    price: resolvePrice(p.price, p.price_breakup),
     image,
     description: p.description ?? null,
     status: p.status ?? 'active',
@@ -55,6 +69,7 @@ export async function getDiscoverFeaturedProducts({ includeInactive = false } = 
         id,
         name,
         price,
+        price_breakup,
         image,
         primary_image,
         thumbnail,

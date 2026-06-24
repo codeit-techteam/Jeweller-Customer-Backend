@@ -58,12 +58,13 @@ function shapeRow(row, products = []) {
  * Read products that point at this category via the legacy
  * `products.category_id` column. Used to back-fill the new junction table the
  * first time an admin opens a category that was seeded before the CMS.
+ * Also includes price_breakup so price can be resolved correctly downstream.
  */
 async function fetchLegacyCategoryProducts(categoryId) {
   const { data, error } = await supabase
     .from('products')
     .select(
-      'id, name, price, primary_image, thumbnail, featured_image, image, status, is_trending, discount_percentage',
+      'id, name, price, price_breakup, primary_image, thumbnail, featured_image, image, status, is_trending, discount_percentage',
     )
     .eq('category_id', categoryId)
     .order('created_at', { ascending: true });
@@ -74,6 +75,7 @@ async function fetchLegacyCategoryProducts(categoryId) {
     id: product.id,
     name: product.name,
     price: product.price,
+    price_breakup: product.price_breakup ?? null,
     image:
       product.primary_image ??
       product.thumbnail ??
@@ -267,10 +269,29 @@ export async function getCategoryListingProducts(categoryId) {
   if (!category) return null;
 
   let productIds = category.product_ids ?? [];
+
   if (!productIds.length) {
+    // Fallback 1: junction table seeded from legacy products.category_id column.
     const legacy = await fetchLegacyCategoryProducts(categoryId);
+    if (legacy.length) {
+      await seedJunctionFromLegacy(categoryId, legacy);
+    }
     productIds = legacy.map((product) => product.id);
   }
+
+  if (!productIds.length) {
+    // Fallback 2: direct query by category_id to catch products that were
+    // linked by the Jeweller Backend (via syncCategoryProductLink) but whose
+    // junction row was not yet seeded into this service's view.
+    const { data: directRows } = await supabase
+      .from('products')
+      .select('id')
+      .eq('category_id', categoryId)
+      .in('status', ['active', 'ACTIVE', 'flagged', 'FLAGGED'])
+      .order('created_at', { ascending: true });
+    productIds = (directRows ?? []).map((r) => r.id);
+  }
+
   if (!productIds.length) {
     return { category, products: [] };
   }

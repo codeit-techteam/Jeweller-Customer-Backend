@@ -320,10 +320,28 @@ export function mapProductRow(row) {
   }
   const price_breakup = normalizePriceBreakup(row.price_breakup);
 
+  // Resolve the canonical display price: prefer price_breakup.total (or the
+  // sum of its components) over the raw products.price column which can be
+  // stale (e.g. set to a making-charge-only value before the full breakup was
+  // entered).
+  function resolvePrice(rawPrice, pb) {
+    const base = Number(rawPrice ?? 0) || 0;
+    if (!pb || typeof pb !== 'object') return base;
+    const total = pb.total != null ? Number(pb.total) : NaN;
+    if (Number.isFinite(total) && total > 0) return total;
+    const sum =
+      (Number(pb.gold ?? 0) || 0) +
+      (Number(pb.gemstone ?? 0) || 0) +
+      (Number(pb.makingCharge ?? pb.making ?? 0) || 0) +
+      (Number(pb.gst ?? 0) || 0);
+    return sum > 0 ? sum : base;
+  }
+  const resolvedPrice = resolvePrice(row.price, row.price_breakup);
+
   return {
     id: row.id,
     name: row.name,
-    price: row.price,
+    price: resolvedPrice,
     weight: row.weight != null ? Number(row.weight) : null,
     image: versionedThumbnail,
     thumbnail_image: versionedThumbnail,
