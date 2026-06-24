@@ -75,8 +75,15 @@ function isVerifiedActiveBoutique(boutique) {
   if (!boutique) return false;
   if (boutique.deleted_at) return false;
   if (boutique.is_active === false) return false;
+  // Require store_status = 'approved' as the minimum bar for search visibility.
+  // Products from approved boutiques appear in search regardless of is_verified flag,
+  // because approved boutiques are already customer-browsable.
   if (boutique.store_status && boutique.store_status !== "approved") return false;
-  return Boolean(boutique.is_verified ?? boutique.verified);
+  // If store_status is approved, treat the boutique as eligible even when is_verified
+  // is not yet set (can happen between approval and manual verification step).
+  const isApproved = boutique.store_status === "approved";
+  const isVerified = Boolean(boutique.is_verified ?? boutique.verified);
+  return isApproved || isVerified;
 }
 
 function isCustomerVisibleProduct(row) {

@@ -301,16 +301,30 @@ export function mapProductRow(row) {
       : Number(row.discount_percentage);
   const reviews_count =
     row.reviews_count == null ? 0 : Math.max(0, Math.floor(Number(row.reviews_count)));
-  const specifications =
+  const rawSpecifications =
     row.specifications && typeof row.specifications === "object"
       ? row.specifications
       : {};
+  // Backfill approxWeight from the products.weight column when the jeweller
+  // stored weight in the DB column rather than specifications.approxWeight.
+  const specifications = { ...rawSpecifications };
+  if (
+    !specifications.approxWeight &&
+    !specifications.weight &&
+    row.weight != null
+  ) {
+    const w = Number(row.weight);
+    if (Number.isFinite(w) && w > 0) {
+      specifications.approxWeight = `${w} g`;
+    }
+  }
   const price_breakup = normalizePriceBreakup(row.price_breakup);
 
   return {
     id: row.id,
     name: row.name,
     price: row.price,
+    weight: row.weight != null ? Number(row.weight) : null,
     image: versionedThumbnail,
     thumbnail_image: versionedThumbnail,
     primary_image: versionedThumbnail,

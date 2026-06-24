@@ -36,6 +36,26 @@ function resolveProductImage(row) {
   return withVersion(selected, row.updated_at ?? row.created_at ?? null);
 }
 
+/**
+ * Resolve display price using price_breakup as the source of truth when available.
+ * Priority: price_breakup.total > sum of components > raw price column.
+ * This ensures listing cards show the same price as the product detail page.
+ */
+function resolveDisplayPrice(rawPrice, priceBreakup) {
+  const price = Number(rawPrice ?? 0) || 0;
+  if (!priceBreakup || typeof priceBreakup !== 'object') return price;
+
+  const totalRaw = priceBreakup.total != null ? Number(priceBreakup.total) : NaN;
+  if (Number.isFinite(totalRaw) && totalRaw > 0) return totalRaw;
+
+  const gold = Number(priceBreakup.gold ?? 0) || 0;
+  const gemstone = Number(priceBreakup.gemstone ?? 0) || 0;
+  const making = Number(priceBreakup.makingCharge ?? priceBreakup.making ?? 0) || 0;
+  const gst = Number(priceBreakup.gst ?? 0) || 0;
+  const sum = gold + gemstone + making + gst;
+  return sum > 0 ? sum : price;
+}
+
 function mapBoutique(row) {
   const galleryImages = arr(row.gallery_images).length ? arr(row.gallery_images) : arr(row.banner_images);
   const cover = resolveBoutiqueCoverUrl(row);
@@ -106,7 +126,7 @@ function mapProduct(row) {
   return {
     id: row.id,
     name: row.name,
-    price: Number(row.price ?? 0),
+    price: resolveDisplayPrice(row.price, row.price_breakup),
     image: resolveProductImage(row),
     category_id: row.category_id ?? null,
     category: row.categories ? { id: row.categories.id, name: row.categories.name } : null,
@@ -115,6 +135,7 @@ function mapProduct(row) {
     trending: bool(row.is_trending ?? row.trending),
     video_url: row.video_url ?? null,
     video_thumbnail: row.video_thumbnail ?? null,
+    price_breakup: row.price_breakup ?? null,
     created_at: row.created_at ?? null,
     updated_at: row.updated_at ?? null,
   };
@@ -368,7 +389,7 @@ export async function getBoutiqueById(id) {
   const { data: collections } = await supabase.from('boutique_collections').select('id,name,slug').eq('boutique_id', id).order('name', { ascending: true });
   const { data: directProducts, error: directProductsError } = await supabase
     .from('products')
-    .select('id,name,price,image,thumbnail,primary_image,featured_image,images,media,video_url,video_thumbnail,category_id,is_trending,trending,collection_name,status,is_draft,updated_at,created_at,categories(id,name)')
+    .select('id,name,price,price_breakup,image,thumbnail,primary_image,featured_image,images,media,video_url,video_thumbnail,category_id,is_trending,trending,collection_name,status,is_draft,updated_at,created_at,categories(id,name)')
     .or(`boutique_id.eq.${id},primary_boutique_id.eq.${id}`)
     .order('created_at', { ascending: false });
   if (directProductsError) {
@@ -651,7 +672,7 @@ export async function softDeleteBoutiqueById(id) {
 export async function getBoutiqueProducts(id, { includeAll = false } = {}) {
   const { data, error } = await supabase
     .from('products')
-    .select('id,name,price,image,thumbnail,primary_image,featured_image,images,media,video_url,video_thumbnail,category_id,is_trending,trending,collection_name,status,is_draft,updated_at,created_at,categories(id,name)')
+    .select('id,name,price,price_breakup,image,thumbnail,primary_image,featured_image,images,media,video_url,video_thumbnail,category_id,is_trending,trending,collection_name,status,is_draft,updated_at,created_at,categories(id,name)')
     .or(`boutique_id.eq.${id},primary_boutique_id.eq.${id}`)
     .order('created_at', { ascending: false });
   if (error) throw new Error(`Failed to fetch boutique products: ${error.message}`);

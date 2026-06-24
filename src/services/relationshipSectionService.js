@@ -1,4 +1,5 @@
 import { supabase } from '../config/supabase.js';
+import { CUSTOMER_VISIBLE_STATUS_DB_VALUES } from '../constants/productGovernance.js';
 import {
   applyBulkOrder,
   fetchLinkedProducts,
@@ -129,7 +130,7 @@ export async function getRelationshipSectionListingProducts(sectionId) {
     `,
     )
     .in('id', ids)
-    .eq('status', 'active');
+    .in('status', CUSTOMER_VISIBLE_STATUS_DB_VALUES);
 
   if (error) throw new Error(`Failed to load relationship products: ${error.message}`);
   const byId = new Map((data ?? []).map((row) => [row.id, mapRelationshipListingProduct(row)]));

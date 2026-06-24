@@ -266,7 +266,11 @@ export async function getCategoryListingProducts(categoryId) {
   const category = await getCategoryById(categoryId);
   if (!category) return null;
 
-  const productIds = category.product_ids ?? [];
+  let productIds = category.product_ids ?? [];
+  if (!productIds.length) {
+    const legacy = await fetchLegacyCategoryProducts(categoryId);
+    productIds = legacy.map((product) => product.id);
+  }
   if (!productIds.length) {
     return { category, products: [] };
   }
@@ -294,18 +298,45 @@ export async function getCategoryListingProductsBySlug(slugOrName) {
     .eq('is_active', true);
   if (error) throw new Error(`Failed to resolve category: ${error.message}`);
 
-  const match = (rows ?? []).find((row) => {
-    const nameKey = String(row.name ?? '')
-      .trim()
-      .toUpperCase()
-      .replace(/\s+/g, '');
-    const slugKey = String(row.slug ?? row.name ?? '')
+  const categoryTokensMatch = (target, name, slug) => {
+    const normalize = (value) =>
+      String(value ?? '')
+        .trim()
+        .toUpperCase()
+        .replace(/\s+/g, '');
+    const targetUpper = normalize(target);
+    const nameKey = normalize(name);
+    const slugKey = String(slug ?? name ?? '')
       .trim()
       .toLowerCase()
       .replace(/\s+/g, '');
-    const targetUpper = token.toUpperCase();
-    return nameKey === targetUpper || slugKey === token;
-  });
+    if (nameKey === targetUpper || slugKey === token) return true;
+
+    const tokenize = (value) =>
+      String(value ?? '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, ' ')
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean);
+    const stripPlural = (part) =>
+      part.length > 4 && part.endsWith('s') ? part.slice(0, -1) : part;
+    const targetParts = tokenize(targetUpper);
+    const nameParts = tokenize(nameKey);
+    const slugParts = tokenize(slugKey);
+    const allParts = [...nameParts, ...slugParts];
+    return targetParts.some((left) =>
+      allParts.some((right) => {
+        const l = stripPlural(left);
+        const r = stripPlural(right);
+        return l === r || l.includes(r) || r.includes(l);
+      }),
+    );
+  };
+
+  const match = (rows ?? []).find((row) =>
+    categoryTokensMatch(token, row.name, row.slug),
+  );
   if (!match?.id) return null;
   return getCategoryListingProducts(match.id);
 }
