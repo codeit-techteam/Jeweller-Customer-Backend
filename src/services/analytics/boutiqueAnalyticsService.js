@@ -2,14 +2,14 @@ import {
   countRows,
   fetchRows,
   fillDateSeries,
+  getDateRange,
   groupByDay,
   groupSumByDay,
-  parseDateRange,
   topCounts,
 } from "./_helpers.js";
 
 export async function getBoutiqueAnalytics(query = {}) {
-  const range = parseDateRange(query);
+  const range = getDateRange(query);
   const boutiqueId = String(query.boutiqueId || "").trim();
   if (!boutiqueId) {
     const err = new Error("boutiqueId is required");

@@ -2,24 +2,30 @@ import {
   countRows,
   fetchRows,
   fillDateSeries,
+  getDateRange,
   groupByDay,
-  parseDateRange,
   topCounts,
 } from "./_helpers.js";
 
 export async function getCustomerAnalytics(query = {}) {
-  const range = parseDateRange(query);
+  const range = getDateRange(query);
   const dateFilters = [
     ["created_at", "gte", range.from],
     ["created_at", "lte", range.to],
   ];
+  const viewedAtFilters = [
+    ["viewed_at", "gte", range.from],
+    ["viewed_at", "lte", range.to],
+  ];
   const [totalCustomers, newUsers, wishlistRows, searchRows, viewRows, products] =
     await Promise.all([
       countRows("users_profile"),
-      countRows("users_profile", [["created_at", "gte", range.from], ["created_at", "lte", range.to]]),
+      countRows("users_profile", dateFilters),
       fetchRows("wishlist_items", "user_id, product_id, created_at", dateFilters, { limit: 5000 }),
       fetchRows("search_history", "keyword, user_id, created_at", dateFilters, { limit: 5000 }),
-      fetchRows("recently_viewed", "product_id, user_id, viewed_at", [], { limit: 5000 }),
+      fetchRows("recently_viewed", "product_id, user_id, viewed_at", viewedAtFilters, {
+        limit: 5000,
+      }),
       fetchRows(
         "products",
         "id, name, category_id, categories!category_id(name)",

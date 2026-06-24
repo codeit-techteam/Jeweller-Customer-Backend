@@ -16,7 +16,7 @@ export async function getPlatformAnalytics(query = {}) {
     approvedBoutiques,
     rejectedBoutiques,
     totalProducts,
-    totalCollections,
+    newUsers,
     totalAppointments,
   ] = await Promise.all([
     countRows("users_profile"),
@@ -30,7 +30,10 @@ export async function getPlatformAnalytics(query = {}) {
       ["deleted_at", "is", null],
     ]),
     countRows("products"),
-    countRows("collections"),
+    countRows("users_profile", [
+      ["created_at", "gte", range.from],
+      ["created_at", "lte", range.to],
+    ]),
     countRows("appointments"),
   ]);
 
@@ -102,7 +105,7 @@ export async function getPlatformAnalytics(query = {}) {
       approvedBoutiques,
       pendingBoutiques,
       totalProducts,
-      totalCollections,
+      newUsers,
       totalAppointments,
     },
     charts: {

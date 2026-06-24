@@ -2,8 +2,12 @@ import { supabase } from "../../config/supabase.js";
 
 export const PAGE_SIZE = 1000;
 
-export function parseDateRange(query = {}) {
-  const preset = String(query.range || query.preset || "30d").toLowerCase();
+/**
+ * Resolve analytics date window from query params.
+ * Supports: today | 7d | 7days | 30d | 30days | custom (+ from/to ISO strings).
+ */
+export function getDateRange(query = {}) {
+  const rawRange = String(query.range || query.preset || "30d").toLowerCase();
   const now = new Date();
   let from;
   let to = query.to ? new Date(query.to) : now;
@@ -11,12 +15,15 @@ export function parseDateRange(query = {}) {
   if (query.from && query.to) {
     from = new Date(query.from);
     to = new Date(query.to);
-  } else if (preset === "today") {
+  } else if (rawRange === "today") {
     from = new Date(now);
     from.setHours(0, 0, 0, 0);
-  } else if (preset === "7d") {
+  } else if (rawRange === "7d" || rawRange === "7days") {
     from = new Date(now);
     from.setDate(from.getDate() - 7);
+  } else if (rawRange === "30d" || rawRange === "30days") {
+    from = new Date(now);
+    from.setDate(from.getDate() - 30);
   } else {
     from = new Date(now);
     from.setDate(from.getDate() - 30);
@@ -28,11 +35,22 @@ export function parseDateRange(query = {}) {
     to = now;
   }
 
+  if (to.getTime() < from.getTime()) {
+    const swap = from;
+    from = to;
+    to = swap;
+  }
+
   return {
     from: from.toISOString(),
     to: to.toISOString(),
-    preset,
+    preset: rawRange,
   };
+}
+
+/** @deprecated Use getDateRange — kept for existing imports */
+export function parseDateRange(query = {}) {
+  return getDateRange(query);
 }
 
 export function buildDateFilters(range, column = "created_at") {
@@ -91,12 +109,21 @@ export async function fetchRows(tableName, select = "*", filters = [], { orderBy
   return limit ? out.slice(0, limit) : out;
 }
 
+/** Calendar day key (YYYY-MM-DD) in the server local timezone. */
+export function toCalendarDayKey(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export function groupByDay(rows, dateField = "created_at") {
   const map = new Map();
   for (const row of rows) {
     const raw = row[dateField];
     if (!raw) continue;
-    const day = new Date(raw).toISOString().slice(0, 10);
+    const day = toCalendarDayKey(raw);
     map.set(day, (map.get(day) ?? 0) + 1);
   }
   return [...map.entries()]
@@ -109,7 +136,7 @@ export function groupSumByDay(rows, dateField = "created_at", valueField = "amou
   for (const row of rows) {
     const raw = row[dateField];
     if (!raw) continue;
-    const day = new Date(raw).toISOString().slice(0, 10);
+    const day = toCalendarDayKey(raw);
     map.set(day, (map.get(day) ?? 0) + Number(row[valueField] ?? 0));
   }
   return [...map.entries()]
@@ -131,13 +158,13 @@ export function topCounts(rows, keyFn, limit = 10) {
 
 export function fillDateSeries(series, fromIso, toIso) {
   const map = new Map(series.map((p) => [p.date, p.value]));
-  const start = new Date(fromIso);
-  const end = new Date(toIso);
-  const out = [];
-  const cursor = new Date(start);
+  const cursor = new Date(fromIso);
   cursor.setHours(0, 0, 0, 0);
-  while (cursor <= end) {
-    const date = cursor.toISOString().slice(0, 10);
+  const endDay = new Date(toIso);
+  endDay.setHours(0, 0, 0, 0);
+  const out = [];
+  while (cursor <= endDay) {
+    const date = toCalendarDayKey(cursor);
     out.push({ date, value: map.get(date) ?? 0 });
     cursor.setDate(cursor.getDate() + 1);
   }

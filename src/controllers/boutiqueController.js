@@ -10,6 +10,15 @@ import {
   softDeleteBoutiqueById,
   updateBoutiqueById,
 } from '../services/boutiqueServiceV2.js';
+import { recordBoutiqueProfileViewFireAndForget } from '../services/analytics/trackingService.js';
+
+function trackBoutiqueProfileView(req, boutiqueId) {
+  const userId = req.headers['x-user-id'] || req.headers['x-userid'] || null;
+  recordBoutiqueProfileViewFireAndForget({
+    boutiqueId,
+    userId: userId ? String(userId) : null,
+  });
+}
 
 export async function fetchFeaturedBoutiques(req, res, next) {
   try {
@@ -63,7 +72,8 @@ export async function fetchBoutiques(req, res, next) {
 
 export async function fetchBoutiqueProducts(req, res, next) {
   try {
-    const data = await getBoutiqueProducts(req.params.id);
+    const includeAll = req.query.includeAll === 'true';
+    const data = await getBoutiqueProducts(req.params.id, { includeAll });
     return res.status(200).json({
       success: true,
       data,
@@ -94,6 +104,7 @@ export async function fetchBoutiqueById(req, res, next) {
     if (!data) {
       return res.status(404).json({ success: false, data: null, message: 'Boutique not found' });
     }
+    trackBoutiqueProfileView(req, req.params.id);
     return res.status(200).json({
       success: true,
       data,
@@ -113,6 +124,7 @@ export async function fetchBoutiqueDetailsById(req, res, next) {
     if (!data) {
       return res.status(404).json({ success: false, data: null, message: 'Boutique not found' });
     }
+    trackBoutiqueProfileView(req, req.params.id);
     return res.status(200).json({
       success: true,
       data,

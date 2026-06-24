@@ -57,6 +57,22 @@ async function recordBoutiqueVisit({ boutiqueId, userId, visitorId, source }) {
   return { recorded: true };
 }
 
+/** Fire-and-forget profile view when customer opens boutique detail API. */
+export function recordBoutiqueProfileViewFireAndForget({ boutiqueId, userId = null }) {
+  if (!boutiqueId) return;
+
+  void supabase
+    .from("boutique_visits")
+    .insert({
+      boutique_id: boutiqueId,
+      user_id: userId,
+      source: "profile_view",
+      created_at: new Date().toISOString(),
+    })
+    .then(() => {})
+    .catch(() => {});
+}
+
 export async function linkVisitorToUser({ visitorId, userId }) {
   if (!isValidVisitorId(visitorId)) {
     const err = new Error("Invalid visitorId");

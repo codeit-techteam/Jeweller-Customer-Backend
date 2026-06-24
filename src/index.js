@@ -39,7 +39,7 @@ dotenv.config();
 const app = express();
 const PORT = Number(process.env.PORT) || 5000;
 
-const allowedOrigins = [
+const defaultAllowedOrigins = [
   "http://localhost:3001",
   "http://localhost:3000",
   "http://127.0.0.1:3000",
@@ -49,12 +49,32 @@ const allowedOrigins = [
   "http://192.168.29.30:3001",
   "http://192.168.29.30:3000",
   "http://168.144.83.229:5106",
+  "https://piyush-admin-7hmf.vercel.app",
 ];
+
+const extraAllowedOrigins = (process.env.CORS_ALLOWED_ORIGINS ?? "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+const allowedOrigins = [...defaultAllowedOrigins, ...extraAllowedOrigins];
+
+function isAllowedCorsOrigin(origin) {
+  if (!origin) return true;
+  if (allowedOrigins.includes(origin)) return true;
+  try {
+    const { hostname, protocol } = new URL(origin);
+    if (protocol === "https:" && hostname.endsWith(".vercel.app")) return true;
+  } catch {
+    return false;
+  }
+  return false;
+}
 
 app.use(
   cors({
     origin(origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (isAllowedCorsOrigin(origin)) {
         callback(null, true);
         return;
       }

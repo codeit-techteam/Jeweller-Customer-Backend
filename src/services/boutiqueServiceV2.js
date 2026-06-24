@@ -115,6 +115,8 @@ function mapProduct(row) {
     trending: bool(row.is_trending ?? row.trending),
     video_url: row.video_url ?? null,
     video_thumbnail: row.video_thumbnail ?? null,
+    created_at: row.created_at ?? null,
+    updated_at: row.updated_at ?? null,
   };
 }
 
@@ -646,7 +648,7 @@ export async function softDeleteBoutiqueById(id) {
   return data;
 }
 
-export async function getBoutiqueProducts(id) {
+export async function getBoutiqueProducts(id, { includeAll = false } = {}) {
   const { data, error } = await supabase
     .from('products')
     .select('id,name,price,image,thumbnail,primary_image,featured_image,images,media,video_url,video_thumbnail,category_id,is_trending,trending,collection_name,status,is_draft,updated_at,created_at,categories(id,name)')
@@ -655,10 +657,17 @@ export async function getBoutiqueProducts(id) {
   if (error) throw new Error(`Failed to fetch boutique products: ${error.message}`);
   return (data ?? [])
     .filter((row) => {
+      if (String(row.status ?? '').toLowerCase() === 'deleted') return false;
+      if (includeAll) return true;
       if (row.is_draft === true) return false;
       return isCustomerVisibleStatus(row.status);
     })
-    .map((row) => mapProduct(row));
+    .map((row) => ({
+      ...mapProduct(row),
+      status: row.status ?? 'active',
+      is_draft: Boolean(row.is_draft),
+      created_at: row.created_at ?? null,
+    }));
 }
 
 export async function getBoutiqueCollections(id) {
