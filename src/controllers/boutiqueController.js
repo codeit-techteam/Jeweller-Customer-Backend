@@ -165,6 +165,7 @@ export async function editBoutique(req, res, next) {
       message: 'Boutique updated successfully',
     });
   } catch (error) {
+    console.error('Boutique update error:', error);
     return next(error);
   }
 }
