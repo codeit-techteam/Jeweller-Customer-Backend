@@ -2,6 +2,7 @@ import {
   buildAnalyticsCsv,
   buildAnalyticsPdfBuffer,
   getBoutiqueAnalytics,
+  getBoutiqueOverviewStats,
   getCustomerAnalytics,
   getPlatformAnalytics,
   listBoutiquesForAnalytics,
@@ -59,6 +60,15 @@ export async function fetchBoutiqueAnalytics(req, res, next) {
   try {
     const data = await getBoutiqueAnalytics(req.query);
     return res.status(200).json({ success: true, data, message: "Boutique analytics fetched" });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function fetchBoutiqueOverviewStats(req, res, next) {
+  try {
+    const data = await getBoutiqueOverviewStats(req.query);
+    return res.status(200).json({ success: true, data, message: "Boutique overview stats fetched" });
   } catch (error) {
     return next(error);
   }

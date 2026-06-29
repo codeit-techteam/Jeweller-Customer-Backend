@@ -550,21 +550,98 @@ export async function getProductById(id, options = {}) {
   return mapped;
 }
 
-export async function getTrendingProducts() {
-  console.log("[productService] Fetching trending products");
-  const boutiqueEmbed =
-    "boutiques!boutique_id(id, name, location, rating, reviews_count, is_verified, verified, image, cover_image_url, logo_url, gallery_images, banner_images, contact_number, whatsapp, phone_number, whatsapp_number, latitude, longitude, full_address, updated_at)";
-  const selectWithImages = `*, categories(id, name), ${boutiqueEmbed}, product_images(id, image_url, is_primary, sort_order)`;
-  const selectBare = `*, categories(id, name), ${boutiqueEmbed}`;
+export async function getTrendingProducts({ limit = 6 } = {}) {
+  console.log("[productService] Fetching scored trending products");
+  const since = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString();
 
-  let { data, error } = await supabase
-    .from("products")
-    .select(selectWithImages)
-    .eq("is_trending", true)
-    .in("status", CUSTOMER_VISIBLE_STATUS_DB_VALUES)
-    .order("updated_at", { ascending: false })
-    .limit(30);
+  const [candidateRows, wishlistResult, viewsResult] = await Promise.all([
+    fetchTrendingCandidateRows({ since, limit: 50 }),
+    supabase.from("wishlist_items").select("product_id"),
+    supabase.from("product_views").select("product_id"),
+  ]);
 
+  let rows = candidateRows;
+  if (!rows.length) {
+    rows = await fetchTrendingCandidateRows({ since: null, limit: 50 });
+  }
+
+  if (wishlistResult.error) {
+    console.warn(
+      "[productService] wishlist_items unavailable for trending score",
+      wishlistResult.error.message,
+    );
+  }
+
+  const wishlistCounts = buildProductCountMap(wishlistResult.data);
+  const viewCounts = viewsResult.error
+    ? new Map()
+    : buildProductCountMap(viewsResult.data);
+
+  if (viewsResult.error) {
+    console.warn(
+      "[productService] product_views unavailable, using wishlist-only trending",
+      viewsResult.error.message,
+    );
+  }
+
+  const products = rows.map(mapProductRow);
+  const scored = products.map((product) => {
+    const wishlists = wishlistCounts.get(product.id) ?? 0;
+    const views = viewCounts.get(product.id) ?? 0;
+    return {
+      product,
+      score: views * 1 + wishlists * 3,
+    };
+  });
+
+  const allScoresZero =
+    scored.length === 0 || scored.every((entry) => entry.score === 0);
+
+  const ordered = allScoresZero
+    ? products
+    : scored
+        .sort((a, b) => {
+          if (b.score !== a.score) return b.score - a.score;
+          const aTime = new Date(a.product.created_at ?? 0).getTime();
+          const bTime = new Date(b.product.created_at ?? 0).getTime();
+          return bTime - aTime;
+        })
+        .map((entry) => entry.product);
+
+  return ordered.slice(0, limit);
+}
+
+const TRENDING_BOUTIQUE_EMBED =
+  "boutiques!boutique_id(id, name, location, rating, reviews_count, is_verified, verified, image, cover_image_url, logo_url, gallery_images, banner_images, contact_number, whatsapp, phone_number, whatsapp_number, latitude, longitude, full_address, updated_at)";
+
+function buildProductCountMap(rows, idField = "product_id") {
+  const map = new Map();
+  for (const row of rows ?? []) {
+    const id = row?.[idField];
+    if (!id) continue;
+    map.set(id, (map.get(id) ?? 0) + 1);
+  }
+  return map;
+}
+
+async function fetchTrendingCandidateRows({ since = null, limit = 50 } = {}) {
+  const selectWithImages = `*, categories(id, name), ${TRENDING_BOUTIQUE_EMBED}, product_images(id, image_url, is_primary, sort_order)`;
+  const selectBare = `*, categories(id, name), ${TRENDING_BOUTIQUE_EMBED}`;
+
+  const run = async (selectClause) => {
+    let query = supabase
+      .from("products")
+      .select(selectClause)
+      .in("status", CUSTOMER_VISIBLE_STATUS_DB_VALUES)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (since) {
+      query = query.gte("created_at", since);
+    }
+    return query;
+  };
+
+  let { data, error } = await run(selectWithImages);
   if (error) {
     const message = String(error.message || "").toLowerCase();
     const relationMissing =
@@ -572,31 +649,19 @@ export async function getTrendingProducts() {
       (message.includes("product_images") || message.includes("embed"));
     if (relationMissing) {
       console.warn(
-        "[productService] trending select without product_images fallback",
+        "[productService] trending candidates without product_images fallback",
       );
-      const fallback = await supabase
-        .from("products")
-        .select(selectBare)
-        .eq("is_trending", true)
-        .eq("status", "active")
-        .order("updated_at", { ascending: false })
-        .limit(30);
-      data = fallback.data;
+      const fallback = await run(selectBare);
+      data = (fallback.data ?? []).map((row) => ({ ...row, product_images: [] }));
       error = fallback.error;
-      if (!error && data?.length) {
-        data = data.map((row) => ({ ...row, product_images: [] }));
-      }
     }
   }
 
   if (error) {
-    console.error("[productService] Supabase trending query failed", {
-      error: error.message,
-    });
-    throw new Error(`Failed to fetch products: ${error.message}`);
+    throw new Error(`Failed to fetch trending candidates: ${error.message}`);
   }
 
-  return (data ?? []).map(mapProductRow);
+  return data ?? [];
 }
 
 function normalizeNullableText(value) {
