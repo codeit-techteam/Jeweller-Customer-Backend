@@ -1,5 +1,6 @@
 import {
   countRows,
+  enrichSeriesWithInsights,
   fetchRows,
   fillDateSeries,
   getDateRange,
@@ -84,17 +85,17 @@ export async function getPlatformAnalytics(query = {}) {
     ...newBoutiqueRows.map((row) => ({ created_at: row.created_at })),
   ];
 
-  const userGrowth = fillDateSeries(groupByDay(signupRows), range.from, range.to);
-  const boutiqueApprovalTrends = fillDateSeries(
-    groupByDay(approvedBoutiquesRows),
-    range.from,
-    range.to,
+  const userGrowth = enrichSeriesWithInsights(
+    fillDateSeries(groupByDay(signupRows), range.from, range.to),
   );
-  const productUploadTrends = fillDateSeries(groupByDay(products), range.from, range.to);
-  const appointmentTrends = fillDateSeries(
-    groupByDay(appointments, "created_at"),
-    range.from,
-    range.to,
+  const boutiqueApprovalTrends = enrichSeriesWithInsights(
+    fillDateSeries(groupByDay(approvedBoutiquesRows), range.from, range.to),
+  );
+  const productUploadTrends = enrichSeriesWithInsights(
+    fillDateSeries(groupByDay(products), range.from, range.to),
+  );
+  const appointmentTrends = enrichSeriesWithInsights(
+    fillDateSeries(groupByDay(appointments, "created_at"), range.from, range.to),
   );
 
   const boutiquePerformance = await getTopBoutiques(range);

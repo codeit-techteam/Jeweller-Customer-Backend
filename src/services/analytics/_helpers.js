@@ -171,6 +171,92 @@ export function fillDateSeries(series, fromIso, toIso) {
   return out;
 }
 
+/** Enrich time-series points with day-over-day growth insights. */
+export function enrichSeriesWithInsights(series = []) {
+  return series.map((point, index) => {
+    const previousValue = index > 0 ? Number(series[index - 1]?.value ?? 0) : 0;
+    const value = Number(point.value ?? 0);
+    const difference = value - previousValue;
+    let growthPercent = 0;
+    if (previousValue > 0) {
+      growthPercent = Math.round((difference / previousValue) * 10000) / 100;
+    } else if (value > 0) {
+      growthPercent = 100;
+    }
+    const trend = difference > 0 ? "up" : difference < 0 ? "down" : "flat";
+    return {
+      ...point,
+      value,
+      previousValue,
+      difference,
+      growthPercent,
+      trend,
+    };
+  });
+}
+
+/** Attach percentage share to ranked rows. */
+export function withPercentages(rows = [], countField = "count") {
+  const total = rows.reduce((sum, row) => sum + Number(row[countField] ?? 0), 0);
+  return rows.map((row) => {
+    const count = Number(row[countField] ?? 0);
+    const percentage = total > 0 ? Math.round((count / total) * 10000) / 100 : 0;
+    return { ...row, percentage, total };
+  });
+}
+
+/** Group rows by product_id with view counts (aggregation pipeline style). */
+export function aggregateProductViewCounts(rows = []) {
+  const map = new Map();
+  for (const row of rows) {
+    const productId = row.product_id;
+    if (!productId) continue;
+    map.set(productId, (map.get(productId) ?? 0) + 1);
+  }
+  return map;
+}
+
+/** Inclusive calendar-day bounds for a YYYY-MM-DD key (server local timezone). */
+export function dayBoundsFromDateKey(dateKey) {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const start = new Date(year, month - 1, day, 0, 0, 0, 0);
+  const end = new Date(year, month - 1, day, 23, 59, 59, 999);
+  return { from: start.toISOString(), to: end.toISOString() };
+}
+
+/**
+ * Resolve a query window for drill-down endpoints.
+ * Accepts either a single `date` (YYYY-MM-DD) for a one-day window, or a
+ * `startDate`/`endDate` (aliases for `from`/`to`) range, falling back to the
+ * standard `range` presets supported by getDateRange.
+ */
+export function resolveDrilldownWindow(query = {}) {
+  if (query.date) {
+    const dateKey = String(query.date).slice(0, 10);
+    const bounds = dayBoundsFromDateKey(dateKey);
+    return { ...bounds, preset: "day", date: dateKey };
+  }
+
+  const range = getDateRange({
+    range: query.range,
+    from: query.startDate ?? query.from,
+    to: query.endDate ?? query.to,
+  });
+  return { from: range.from, to: range.to, preset: range.preset, date: null };
+}
+
+/** Resolve a product's display image from the common column aliases used across tables. */
+export function resolveProductImage(product) {
+  if (!product) return null;
+  return (
+    product.primary_image ??
+    product.thumbnail ??
+    product.featured_image ??
+    product.image ??
+    null
+  );
+}
+
 export async function getDailyRollups(fromIso, toIso) {
   const { data, error } = await supabase
     .from("analytics_daily_rollups")

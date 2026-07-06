@@ -12,15 +12,16 @@ const UUID_V4_LIKE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3
 
 export async function fetchProducts(req, res, next) {
   try {
-    const { category_id: categoryId } = req.query;
+    const { category_id: categoryId, sort } = req.query;
     const includeInactive =
       String(req.query.include_inactive ?? req.query.includeInactive ?? '') ===
         'true' || isAdminRequest(req);
     console.log('[productController] GET /api/products', {
       categoryId: categoryId ?? null,
       includeInactive,
+      sort: sort ?? null,
     });
-    const data = await getProducts(categoryId, { includeInactive });
+    const data = await getProducts(categoryId, { includeInactive, sort });
     return res.status(200).json({
       success: true,
       data,

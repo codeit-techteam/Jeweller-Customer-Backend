@@ -408,7 +408,7 @@ async function runProductQuery(
   categoryId,
   singleId,
   trendingOnly,
-  { includeInactive = false } = {},
+  { includeInactive = false, sort } = {},
 ) {
   const boutiqueEmbed =
     "boutiques!boutique_id(id, name, location, rating, reviews_count, is_verified, verified, image, cover_image_url, logo_url, gallery_images, banner_images, contact_number, whatsapp, phone_number, whatsapp_number, latitude, longitude, full_address, updated_at)";
@@ -421,7 +421,18 @@ async function runProductQuery(
   if (singleId) {
     query = query.eq("id", singleId).maybeSingle();
   } else {
-    query = query.order("name", { ascending: true });
+    const sortKey = String(sort || "").toLowerCase();
+    if (sortKey === "priceasc" || sortKey === "price_asc") {
+      query = query.order("price", { ascending: true, nullsFirst: false });
+    } else if (sortKey === "pricedesc" || sortKey === "price_desc") {
+      query = query.order("price", { ascending: false, nullsFirst: false });
+    } else if (sortKey === "oldest" || sortKey === "created_asc") {
+      query = query.order("created_at", { ascending: true });
+    } else if (sortKey === "newest" || sortKey === "recent" || sortKey === "created_desc") {
+      query = query.order("created_at", { ascending: false });
+    } else {
+      query = query.order("name", { ascending: true });
+    }
   }
 
   if (categoryId) {
@@ -444,13 +455,14 @@ async function safeProductSelect({
   singleId = null,
   trendingOnly = false,
   includeInactive = false,
+  sort = null,
 } = {}) {
   const { data, error } = await runProductQuery(
     true,
     categoryId,
     singleId,
     trendingOnly,
-    { includeInactive },
+    { includeInactive, sort },
   );
 
   if (!error) {
@@ -479,7 +491,7 @@ async function safeProductSelect({
     categoryId,
     singleId,
     trendingOnly,
-    { includeInactive },
+    { includeInactive, sort },
   );
 
   if (fallback.error) {
@@ -506,11 +518,13 @@ async function safeProductSelect({
 
 export async function getProducts(categoryId, options = {}) {
   const includeInactive = Boolean(options.includeInactive);
+  const sort = options.sort ?? null;
   console.log("[productService] Fetching products", {
     categoryId: categoryId ?? null,
     includeInactive,
+    sort,
   });
-  const data = await safeProductSelect({ categoryId, includeInactive });
+  const data = await safeProductSelect({ categoryId, includeInactive, sort });
   return (data ?? []).map(mapProductRow);
 }
 

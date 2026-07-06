@@ -1,10 +1,17 @@
 import {
   buildAnalyticsCsv,
   buildAnalyticsPdfBuffer,
+  getActivityDetails,
+  getAdminCustomerAnalytics,
   getBoutiqueAnalytics,
   getBoutiqueOverviewStats,
+  getBoutiquePendingActions,
   getCustomerAnalytics,
   getPlatformAnalytics,
+  getProductViewDrilldown,
+  getSearchKeywordDrilldown,
+  getCategoryDetailDrilldown,
+  getWishlistDetails,
   listBoutiquesForAnalytics,
 } from "../services/analytics/index.js";
 import {
@@ -87,6 +94,69 @@ export async function fetchBoutiqueOptions(_req, res, next) {
   try {
     const data = await listBoutiquesForAnalytics();
     return res.status(200).json({ success: true, data, message: "Boutiques listed" });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function fetchProductDrilldown(req, res, next) {
+  try {
+    const data = await getProductViewDrilldown(req.query);
+    return res.status(200).json({ success: true, data, message: "Product drilldown fetched" });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function fetchBoutiquePendingActions(req, res, next) {
+  try {
+    const data = await getBoutiquePendingActions(req.query);
+    return res.status(200).json({ success: true, data, message: "Boutique pending actions fetched" });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function fetchAdminCustomerAnalytics(req, res, next) {
+  try {
+    const data = await getAdminCustomerAnalytics(req.query);
+    return res.status(200).json({ success: true, data, message: "Customer analytics fetched" });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function fetchSearchKeywordDrilldown(req, res, next) {
+  try {
+    const data = await getSearchKeywordDrilldown(req.query);
+    return res.status(200).json({ success: true, data, message: "Search keyword drilldown fetched" });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function fetchCategoryDetailDrilldown(req, res, next) {
+  try {
+    const data = await getCategoryDetailDrilldown(req.query);
+    return res.status(200).json({ success: true, data, message: "Category detail drilldown fetched" });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function fetchActivityDetails(req, res, next) {
+  try {
+    const data = await getActivityDetails(req.query);
+    return res.status(200).json({ success: true, data, message: "Activity details fetched" });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function fetchWishlistDetails(req, res, next) {
+  try {
+    const data = await getWishlistDetails(req.query);
+    return res.status(200).json({ success: true, data, message: "Wishlist details fetched" });
   } catch (error) {
     return next(error);
   }

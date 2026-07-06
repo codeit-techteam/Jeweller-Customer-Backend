@@ -1,11 +1,13 @@
 import {
   countRows,
+  enrichSeriesWithInsights,
   fetchRows,
   fillDateSeries,
   getDateRange,
   groupByDay,
   groupSumByDay,
   topCounts,
+  withPercentages,
 } from "./_helpers.js";
 
 export async function getBoutiqueAnalytics(query = {}) {
@@ -92,16 +94,84 @@ export async function getBoutiqueAnalytics(query = {}) {
 
   const productNameMap = new Map(products.map((p) => [p.id, p]));
 
-  const topPerformingProducts = topCounts(
+  const boutiqueRow = (
+    await fetchRows("boutiques", "id, name", [["id", "eq", boutiqueId]], { limit: 1 })
+  )[0];
+  const boutiqueName = boutiqueRow?.name ?? "Boutique";
+
+  const prevRangeMs = new Date(range.to).getTime() - new Date(range.from).getTime();
+  const prevFrom = new Date(new Date(range.from).getTime() - prevRangeMs).toISOString();
+  const prevViews = await fetchRows(
+    "product_views",
+    "product_id, created_at",
+    [
+      ["boutique_id", "eq", boutiqueId],
+      ["created_at", "gte", prevFrom],
+      ["created_at", "lt", range.from],
+    ],
+    { limit: 5000 },
+  );
+  const prevViewCountByProduct = new Map();
+  for (const row of prevViews) {
+    prevViewCountByProduct.set(
+      row.product_id,
+      (prevViewCountByProduct.get(row.product_id) ?? 0) + 1,
+    );
+  }
+
+  function resolveProductImage(product) {
+    if (!product) return null;
+    return product.image ?? product.primary_image ?? product.thumbnail ?? null;
+  }
+
+  const currentViewCountByProduct = new Map();
+  for (const row of productViews) {
+    currentViewCountByProduct.set(
+      row.product_id,
+      (currentViewCountByProduct.get(row.product_id) ?? 0) + 1,
+    );
+  }
+
+  const topPerformingRaw = topCounts(
     productViews,
     (r) => {
       const p = productNameMap.get(r.product_id);
+      const prevCount = prevViewCountByProduct.get(r.product_id) ?? 0;
+      const currentCount = currentViewCountByProduct.get(r.product_id) ?? 0;
+      const growth =
+        prevCount > 0
+          ? Math.round(((currentCount - prevCount) / prevCount) * 10000) / 100
+          : currentCount > 0
+            ? 100
+            : 0;
       return p
-        ? { id: r.product_id, label: p.name, meta: { price: p.price, image: p.image } }
-        : { id: r.product_id, label: "Product", meta: {} };
+        ? {
+            id: r.product_id,
+            label: p.name,
+            meta: {
+              price: p.price,
+              image: resolveProductImage(p),
+              boutiqueId,
+              boutiqueName,
+              growthPercent: growth,
+              previousViews: prevCount,
+            },
+          }
+        : { id: r.product_id, label: "Product", meta: { growthPercent: growth } };
     },
     10,
   );
+
+  const topPerformingProducts = withPercentages(topPerformingRaw).map((item) => ({
+    id: item.id,
+    label: item.label,
+    count: item.count,
+    percentage: item.percentage,
+    meta: {
+      ...item.meta,
+      percentage: item.percentage,
+    },
+  }));
 
   const lowPerformingProducts = products
     .map((p) => ({
@@ -167,17 +237,25 @@ export async function getBoutiqueAnalytics(query = {}) {
       whatsappClicks,
     },
     charts: {
-      productViewTrends: fillDateSeries(groupByDay(productViews), range.from, range.to),
-      appointmentTrends: fillDateSeries(groupByDay(appointments), range.from, range.to),
-      revenueAnalytics: fillDateSeries(
-        groupSumByDay(orders, "created_at", "amount"),
-        range.from,
-        range.to,
+      productViewTrends: enrichSeriesWithInsights(
+        fillDateSeries(groupByDay(productViews), range.from, range.to),
       ),
-      customerEngagement: fillDateSeries(
-        groupByDay([...productViews, ...boutiqueWishlist.map((w) => ({ created_at: w.created_at }))]),
-        range.from,
-        range.to,
+      appointmentTrends: enrichSeriesWithInsights(
+        fillDateSeries(groupByDay(appointments), range.from, range.to),
+      ),
+      revenueAnalytics: enrichSeriesWithInsights(
+        fillDateSeries(
+          groupSumByDay(orders, "created_at", "amount"),
+          range.from,
+          range.to,
+        ),
+      ),
+      customerEngagement: enrichSeriesWithInsights(
+        fillDateSeries(
+          groupByDay([...productViews, ...boutiqueWishlist.map((w) => ({ created_at: w.created_at }))]),
+          range.from,
+          range.to,
+        ),
       ),
     },
     sections: {
