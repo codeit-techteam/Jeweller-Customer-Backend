@@ -8,6 +8,7 @@ import {
   getBoutiquePendingActions,
   getCustomerAnalytics,
   getPlatformAnalytics,
+  getPlatformDayDetails,
   getProductViewDrilldown,
   getSearchKeywordDrilldown,
   getCategoryDetailDrilldown,
@@ -58,6 +59,15 @@ export async function fetchPlatformAnalytics(req, res, next) {
   try {
     const data = await getPlatformAnalytics(req.query);
     return res.status(200).json({ success: true, data, message: "Platform analytics fetched" });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function fetchPlatformDayDetails(req, res, next) {
+  try {
+    const data = await getPlatformDayDetails(req.query);
+    return res.status(200).json({ success: true, data, message: "Platform day details fetched" });
   } catch (error) {
     return next(error);
   }

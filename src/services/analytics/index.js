@@ -1,4 +1,5 @@
 export { getPlatformAnalytics } from "./platformAnalyticsService.js";
+export { getPlatformDayDetails } from "./platformDayDetailsService.js";
 export { getBoutiqueAnalytics, listBoutiquesForAnalytics } from "./boutiqueAnalyticsService.js";
 export { getBoutiqueOverviewStats } from "./boutiqueOverviewService.js";
 export { getCustomerAnalytics } from "./customerAnalyticsService.js";

@@ -11,6 +11,7 @@ import {
   fetchCategoryDetailDrilldown,
   fetchCustomerAnalytics,
   fetchPlatformAnalytics,
+  fetchPlatformDayDetails,
   fetchProductDrilldown,
   fetchSearchKeywordDrilldown,
   fetchWishlistDetails,
@@ -23,6 +24,7 @@ const router = Router();
 router.post("/events", recordEvent);
 router.post("/link-visitor", linkVisitor);
 router.get("/platform", fetchPlatformAnalytics);
+router.get("/platform/day-details", fetchPlatformDayDetails);
 router.get("/boutique", fetchBoutiqueAnalytics);
 router.get("/boutique-overview", fetchBoutiqueOverviewStats);
 router.get("/boutique-pending-actions", fetchBoutiquePendingActions);
