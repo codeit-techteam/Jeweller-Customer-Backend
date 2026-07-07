@@ -1,4 +1,5 @@
 import { supabase } from '../config/supabase.js';
+import { isValidTargetType } from '../utils/notificationTargets.js';
 
 const NOTIFICATION_TYPES = new Set([
   'offer',
@@ -90,8 +91,16 @@ export async function sendNotificationCampaign(payload) {
     message,
     type = 'system',
     imageUrl = null,
+    thumbnail = null,
     actionType = 'none',
     actionId = null,
+    targetType = null,
+    targetId = null,
+    deepLink = null,
+    ctaText = null,
+    notificationStyle = 'default',
+    bannerColor = null,
+    priority = 'medium',
     metadata = {},
     audience = 'all',
     selectedUserIds = [],
@@ -118,6 +127,11 @@ export async function sendNotificationCampaign(payload) {
     err.status = 400;
     throw err;
   }
+  if (targetType && !isValidTargetType(targetType)) {
+    const err = new Error('Invalid notification target type');
+    err.status = 400;
+    throw err;
+  }
 
   const userIds = await resolveAudienceUserIds(audience, selectedUserIds);
   if (userIds.length === 0) {
@@ -133,12 +147,22 @@ export async function sendNotificationCampaign(payload) {
       message: message.trim(),
       type,
       image: imageUrl,
+      thumbnail: thumbnail ?? imageUrl,
       action_type: actionType,
       action_id: actionId,
+      target_type: targetType,
+      target_id: targetId ? String(targetId) : null,
+      deep_link: deepLink,
+      cta_text: ctaText,
+      notification_style: notificationStyle ?? 'default',
+      banner_color: bannerColor,
+      priority: ['low', 'medium', 'high'].includes(priority) ? priority : 'medium',
       metadata: { ...buildNotificationMetadata({ metadata }), audience },
       created_by: createdBy,
     })
-    .select('id, title, message, type, created_at')
+    .select(
+      'id, title, message, type, image, thumbnail, cta_text, deep_link, target_type, target_id, priority, created_at',
+    )
     .single();
 
   if (notifError) throw notifError;

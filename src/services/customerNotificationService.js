@@ -12,8 +12,16 @@ const USER_NOTIFICATION_SELECT = `
     message,
     type,
     image,
+    thumbnail,
     action_type,
     action_id,
+    target_type,
+    target_id,
+    deep_link,
+    cta_text,
+    notification_style,
+    banner_color,
+    priority,
     metadata,
     created_at
   )
@@ -22,6 +30,7 @@ const USER_NOTIFICATION_SELECT = `
 function mapRow(row) {
   const n = row?.notification;
   if (!n) return null;
+  const metadata = n.metadata ?? {};
   return {
     id: String(row.id),
     notificationId: String(n.id),
@@ -32,9 +41,19 @@ function mapRow(row) {
     isRead: Boolean(row.is_read),
     createdAt: String(n.created_at ?? row.created_at ?? new Date().toISOString()),
     imageUrl: n.image ?? null,
+    thumbnail: n.thumbnail ?? n.image ?? null,
     actionType: n.action_type ?? 'none',
     actionId: n.action_id ?? null,
-    data: n.metadata ?? {},
+    // First-class marketplace-notification columns, with graceful fallback
+    // to `metadata` for rows created before this feature existed.
+    targetType: n.target_type ?? metadata.targetType ?? 'none',
+    targetId: n.target_id ?? metadata.targetId ?? null,
+    deepLink: n.deep_link ?? metadata.deepLink ?? null,
+    ctaText: n.cta_text ?? metadata.ctaText ?? null,
+    notificationStyle: n.notification_style ?? 'default',
+    bannerColor: n.banner_color ?? null,
+    priority: n.priority ?? 'medium',
+    data: metadata,
   };
 }
 

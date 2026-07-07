@@ -99,7 +99,16 @@ export async function dispatchCampaign(payload) {
     notificationId: result.notification?.id,
     actionType: payload.actionType ?? 'none',
     actionId: payload.actionId ?? null,
-    metadata: payload.metadata ?? {},
+    metadata: {
+      ...(payload.metadata ?? {}),
+      image: result.notification?.image ?? payload.imageUrl ?? null,
+      thumbnail: result.notification?.thumbnail ?? payload.thumbnail ?? null,
+      ctaText: result.notification?.cta_text ?? payload.ctaText ?? null,
+      deepLink: result.notification?.deep_link ?? payload.deepLink ?? null,
+      targetType: result.notification?.target_type ?? payload.targetType ?? null,
+      targetId: result.notification?.target_id ?? payload.targetId ?? null,
+      priority: result.notification?.priority ?? payload.priority ?? 'medium',
+    },
   });
 
   return { ...result, push };
@@ -302,7 +311,9 @@ export async function dispatchSystemEvent(eventKey, context = {}) {
 export async function listNotificationsAdmin({ limit = 50, offset = 0 } = {}) {
   const { data, error } = await supabase
     .from('notifications')
-    .select('id, title, message, type, image, action_type, action_id, metadata, created_at')
+    .select(
+      'id, title, message, type, image, thumbnail, action_type, action_id, target_type, target_id, deep_link, cta_text, priority, metadata, created_at',
+    )
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1);
 
